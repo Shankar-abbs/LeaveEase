@@ -56,14 +56,31 @@ export default function AdminClient({
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [policyMessage, setPolicyMessage] = useState<string | null>(null);
 
-  // Invite state
+  // Invite & Onboarding state
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteBranch, setInviteBranch] = useState(branches[0]?.id || '');
   const [inviteManager, setInviteManager] = useState('');
   const [inviteRole, setInviteRole] = useState<'employee' | 'manager' | 'hr_admin'>('employee');
+  const [invitePassword, setInvitePassword] = useState('');
+  const [grantQuotas, setGrantQuotas] = useState(true);
   const [inviting, setInviting] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+  const [lastOnboarded, setLastOnboarded] = useState<{
+    email: string;
+    fullName: string;
+    role: string;
+    tempPassword: string;
+  } | null>(null);
+  const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
+
+  function generateSecureTempPassword() {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz!@#$%';
+    const rand = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const generated = `Temp@${rand}`;
+    setInvitePassword(generated);
+    return generated;
+  }
 
   // CSV Import state
   const [csvText, setCsvText] = useState('');
@@ -106,74 +123,75 @@ export default function AdminClient({
     }
   }
 
-  // Invite user (creates profile row)
+  // Invite & Onboard user via production API
   async function handleInviteUser(e: React.FormEvent) {
     e.preventDefault();
     setInviting(true);
     setInviteStatus(null);
+    setLastOnboarded(null);
+
+    const tempPwd = invitePassword.trim() || generateSecureTempPassword();
 
     try {
-      // In production/staging, invitations call supabase auth invite or an edge function
-      // For this demo, insert directly into profiles (or trigger auth flow)
-      const { error } = await supabase.from('profiles').insert({
-        email: inviteEmail.trim().toLowerCase(),
-        full_name: inviteName.trim(),
-        branch_id: inviteBranch,
-        manager_id: inviteManager || null,
-        role: inviteRole,
-        active: true,
+      const res = await fetch('/api/admin/onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: inviteName.trim(),
+          email: inviteEmail.trim().toLowerCase(),
+          branchId: inviteBranch,
+          managerId: inviteManager || null,
+          role: inviteRole,
+          tempPassword: tempPwd,
+          grantQuotas,
+        }),
       });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to onboard employee');
+      }
 
-      setInviteStatus(`Success: Invited ${inviteName} (${inviteEmail})`);
+      setLastOnboarded({
+        email: inviteEmail.trim().toLowerCase(),
+        fullName: inviteName.trim(),
+        role: inviteRole,
+        tempPassword: tempPwd,
+      });
+
+      setInviteStatus(`Success: Onboarded ${inviteName} (${inviteEmail})`);
       setInviteEmail('');
       setInviteName('');
+      setInvitePassword('');
     } catch (err: any) {
-      setInviteStatus(`Error: ${err.message || 'Failed to invite user'}`);
+      setInviteStatus(`Error: ${err.message || 'Failed to onboard user'}`);
     } finally {
       setInviting(false);
     }
   }
 
-  // Bulk CSV Import
+  // Bulk CSV Import via production API
   async function handleCsvImport() {
     if (!csvText.trim()) return;
     setCsvImporting(true);
     setCsvResult(null);
 
     try {
-      const lines = csvText.trim().split('\n');
-      let successCount = 0;
-      let errorCount = 0;
+      const res = await fetch('/api/admin/onboard-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csvText }),
+      });
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line || (i === 0 && line.toLowerCase().includes('email'))) continue; // skip header
-
-        const [email, fullName, branchCode, managerEmail, role] = line.split(',').map((s) => s.trim());
-        if (!email || !fullName) continue;
-
-        const branch = branches.find((b) => b.code.toUpperCase() === (branchCode || '').toUpperCase());
-        const mgr = managers.find((m) => m.email.toLowerCase() === (managerEmail || '').toLowerCase());
-
-        const { error } = await supabase.from('profiles').insert({
-          email: email.toLowerCase(),
-          full_name: fullName,
-          branch_id: branch?.id || branches[0]?.id,
-          manager_id: mgr?.id || null,
-          role: role === 'manager' || role === 'hr_admin' ? role : 'employee',
-          active: true,
-        });
-
-        if (error) errorCount++;
-        else successCount++;
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to process bulk import');
       }
 
-      setCsvResult(`Import finished: ${successCount} imported, ${errorCount} failed/skipped.`);
+      setCsvResult(`Bulk import complete: ${data.succeeded} onboarded successfully, ${data.failed} failed/skipped out of ${data.total} rows.`);
       setCsvText('');
-    } catch (err) {
-      setCsvResult('Error processing CSV');
+    } catch (err: any) {
+      setCsvResult(`Error: ${err.message || 'Error processing CSV'}`);
     } finally {
       setCsvImporting(false);
     }
@@ -390,14 +408,82 @@ export default function AdminClient({
         {/* Tab 2: User Invite & Bulk Import */}
         {activeTab === 'invite' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Single Invite */}
+            {/* Single Onboarding */}
             <div className="card p-6 space-y-4">
-              <h2 className="text-base font-bold text-white">Invite Single Employee</h2>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-white">Onboard Single Employee</h2>
+                  <p className="text-xs text-slate-400">Provisions authentication, profile, and initial leave ledger quotas.</p>
+                </div>
+              </div>
+
               {inviteStatus && (
-                <div className={`p-3 rounded-xl text-xs ${inviteStatus.startsWith('Error') ? 'bg-red-500/10 text-red-300' : 'bg-brand-500/10 text-brand-300'}`}>
-                  {inviteStatus}
+                <div className={`p-3 rounded-xl text-xs flex items-center justify-between ${inviteStatus.startsWith('Error') ? 'bg-red-500/10 border border-red-500/20 text-red-300' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'}`}>
+                  <span>{inviteStatus}</span>
                 </div>
               )}
+
+              {/* Onboarded Credentials Card */}
+              {lastOnboarded && (
+                <div className="p-4 rounded-xl bg-slate-950/80 border border-brand-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-brand-300 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-brand-400 animate-ping" />
+                      Provisioned Credentials Ready to Send
+                    </span>
+                    {copiedNotification && (
+                      <span className="text-[11px] text-emerald-400 font-medium">{copiedNotification}</span>
+                    )}
+                  </div>
+
+                  <div className="bg-slate-900/90 rounded-lg p-3 text-xs font-mono space-y-1.5 border border-slate-800">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Name:</span>
+                      <span className="text-white font-medium">{lastOnboarded.fullName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Email:</span>
+                      <span className="text-white font-medium">{lastOnboarded.email}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Temp Password:</span>
+                      <span className="text-brand-300 font-bold bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/20">
+                        {lastOnboarded.tempPassword}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(lastOnboarded.tempPassword);
+                        setCopiedNotification('Password copied!');
+                        setTimeout(() => setCopiedNotification(null), 3000);
+                      }}
+                      className="btn-secondary text-[11px] py-1.5 flex-1"
+                      id="copy-password-btn"
+                    >
+                      Copy Password
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                        const msg = `Hi ${lastOnboarded.fullName},\n\nWelcome to Kestrel Logistics! Your LeaveEase account has been set up.\n\nLogin URL: ${origin}/login\nEmail: ${lastOnboarded.email}\nTemporary Password: ${lastOnboarded.tempPassword}\n\nPlease log in and update your password immediately under Account Settings.\n\nRegards,\nHuman Resources`;
+                        navigator.clipboard.writeText(msg);
+                        setCopiedNotification('Welcome instructions copied!');
+                        setTimeout(() => setCopiedNotification(null), 3000);
+                      }}
+                      className="btn-primary text-[11px] py-1.5 flex-1"
+                      id="copy-welcome-msg-btn"
+                    >
+                      Copy Welcome Instructions
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleInviteUser} className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Full Name</label>
@@ -421,6 +507,27 @@ export default function AdminClient({
                     placeholder="e.g. anand@kestrel.com"
                     className="input w-full"
                     id="invite-email"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-slate-300">Temporary Password</label>
+                    <button
+                      type="button"
+                      onClick={generateSecureTempPassword}
+                      className="text-[11px] text-brand-400 hover:text-brand-300 underline"
+                      id="generate-temp-password-btn"
+                    >
+                      Generate Strong Temp Password
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={invitePassword}
+                    onChange={(e) => setInvitePassword(e.target.value)}
+                    placeholder="Auto-generated if left blank (min 8 chars)"
+                    className="input w-full font-mono text-xs"
+                    id="invite-temp-password"
                   />
                 </div>
                 <div>
@@ -463,13 +570,25 @@ export default function AdminClient({
                     <option value="hr_admin">HR Admin</option>
                   </select>
                 </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="grant-quotas-checkbox"
+                    checked={grantQuotas}
+                    onChange={(e) => setGrantQuotas(e.target.checked)}
+                    className="rounded border-slate-700 bg-slate-900 text-brand-500 focus:ring-brand-500"
+                  />
+                  <label htmlFor="grant-quotas-checkbox" className="text-xs text-slate-300">
+                    Grant initial leave quotas (12 CL, 10 SL, 15 EL)
+                  </label>
+                </div>
                 <button
                   type="submit"
                   disabled={inviting}
                   className="btn-primary w-full mt-2"
                   id="submit-invite-btn"
                 >
-                  {inviting ? 'Inviting...' : 'Add Employee'}
+                  {inviting ? 'Onboarding Employee...' : 'Onboard Employee'}
                 </button>
               </form>
             </div>

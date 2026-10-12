@@ -111,7 +111,11 @@ async function main() {
 
       console.log(`✓ Created ${user.role}: ${user.email}`);
     } else {
-      console.log(`  Skipping existing: ${user.email}`);
+      console.log(`  Updating password for existing: ${user.email}`);
+      await supabase.auth.admin.updateUserById(userId, {
+        password: user.password,
+        email_confirm: true,
+      });
     }
 
     emailToId[user.email] = userId;
