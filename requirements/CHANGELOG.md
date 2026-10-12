@@ -5,6 +5,11 @@ All notable changes to the LeaveEase application will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-10-12
+
+### Fixed
+- **Database Migrations 005–007**: Resolved `function uuid_generate_v4() does not exist` across all tables and RPCs by defining native `public.uuid_generate_v4()` mapping to `gen_random_uuid()` and setting table defaults. Fixed PL/pgSQL `SELECT INTO` wiping `v_status` to null on idempotency checks, and aligned `audit_log` insert columns (`actor_id`, `action`, `entity`, `entity_id`, `diff`).
+
 ## [1.0.3] - 2026-10-12
 
 ### Fixed
