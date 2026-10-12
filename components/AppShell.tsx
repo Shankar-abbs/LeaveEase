@@ -100,7 +100,7 @@ export default function AppShell({ profile, activeRoute, children }: AppShellPro
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
             </svg>
           </div>
-          <span className="font-semibold text-white">LeaveEase</span>
+          <span className="font-semibold text-white tracking-tight">LeaveEase</span>
         </div>
 
         <nav className="flex items-center gap-1">
@@ -116,23 +116,54 @@ export default function AppShell({ profile, activeRoute, children }: AppShellPro
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <div className="text-right">
-            <div className="text-sm font-medium text-slate-200">{profile?.full_name}</div>
-            <div className="text-xs text-slate-500 capitalize">{profile?.role?.replace('_', ' ')}</div>
+            <div className="text-sm font-medium text-slate-200">{profile?.full_name || 'User'}</div>
+            <div className="text-xs text-slate-400 capitalize">{profile?.role?.replace('_', ' ') || 'employee'}</div>
           </div>
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="btn-ghost py-2 px-3 min-h-0"
-            title="Sign out"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800/80 border border-slate-700 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/40 transition-all shadow-sm"
+            title="Sign out of LeaveEase"
             id="sign-out-btn"
           >
             {signingOut ? (
-              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              <>
+                <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                <span>Signing out…</span>
+              </>
             ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              <>
+                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                <span>Sign Out</span>
+              </>
             )}
+          </button>
+        </div>
+      </header>
+
+      {/* Top bar — mobile */}
+      <header className="flex md:hidden items-center justify-between h-14 px-4 border-b border-slate-800 bg-slate-900/90 backdrop-blur-sm sticky top-0 z-40">
+        <div className="flex items-center gap-2.5">
+          <div className="rounded-lg bg-brand-600/20 border border-brand-500/30 p-1.5">
+            <svg className="w-4 h-4 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+            </svg>
+          </div>
+          <span className="font-semibold text-sm text-white">LeaveEase</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400 truncate max-w-[120px]">{profile?.full_name?.split(' ')[0]}</span>
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-300 bg-slate-800 border border-slate-700 hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/40 transition"
+            id="mobile-sign-out-btn"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            <span>Sign Out</span>
           </button>
         </div>
       </header>

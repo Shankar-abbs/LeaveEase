@@ -133,15 +133,22 @@ export default function DashboardClient({ user, profile, initialBalances }: Dash
 
         {/* Header */}
         <div className="pt-4 mb-6 animate-fade-in">
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div>
               <p className="text-slate-400 text-sm">{greeting()},</p>
               <h1 className="text-2xl font-bold text-white mt-0.5">
-                {profile?.full_name?.split(' ')[0] ?? 'there'}
+                {profile?.full_name ?? 'there'}
               </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-brand-400 font-medium capitalize bg-brand-500/10 px-2 py-0.5 rounded-md border border-brand-500/20">
+                  {profile?.role?.replace('_', ' ') ?? 'employee'}
+                </span>
+                <span className="text-xs text-slate-600">•</span>
+                <span className="text-xs text-slate-400 font-mono">{profile?.email}</span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-full">
                 <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                 {isOnline ? 'Live' : `Cached · ${lastSynced.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
               </span>
