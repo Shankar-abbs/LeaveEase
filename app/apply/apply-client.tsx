@@ -93,6 +93,30 @@ export default function ApplyPageClient({ profile, leaveTypes, balances, weeklyO
   const days = previewDays();
   const insufficientBalance = days != null && selectedBalance != null && days > selectedBalance.available;
 
+function formatLeaveSubmissionError(rawMsg: string): string {
+  if (!rawMsg) return 'Unable to submit leave request. Please check your inputs and try again.';
+  const msg = rawMsg.toLowerCase();
+
+  if (msg.includes('overlap_error') || msg.includes('overlapping')) {
+    return 'You already have an existing (pending or approved) leave request during the selected dates. Please adjust your dates.';
+  }
+  if (msg.includes('insufficient_balance') || msg.includes('insufficient')) {
+    const detail = rawMsg.replace(/^.*?INSUFFICIENT_BALANCE:\s*/i, '');
+    return `Insufficient leave balance: ${detail}`;
+  }
+  if (msg.includes('0 leave days') || msg.includes('weekly off')) {
+    return 'Your selected dates fall entirely on non-working days or company weekly offs. No leave deduction is required.';
+  }
+  if (msg.includes('reason must be at least 10')) {
+    return 'Please provide a clear reason of at least 10 characters explaining your leave.';
+  }
+  if (msg.includes('end_date must be >=') || msg.includes('end date')) {
+    return 'The leave end date cannot be earlier than the start date.';
+  }
+
+  return rawMsg.replace(/^[A-Z0-9_]+:\s*/, '');
+}
+
   async function onSubmit(data: LeaveFormData) {
     setSubmitting(true);
     setServerError('');
@@ -113,7 +137,7 @@ export default function ApplyPageClient({ profile, leaveTypes, balances, weeklyO
 
       if (error) {
         const errorCode = error.message?.split(':')[0]?.trim();
-        setServerError(error.message);
+        setServerError(formatLeaveSubmissionError(error.message));
         clientLogger.warn('Leave request submission failed', { action: 'submit_leave', code: errorCode });
         return;
       }

@@ -3,6 +3,7 @@ import {
   SubmitLeaveRequestSchema,
   DecideLeaveRequestSchema,
   PolicySettingsSchema,
+  OnboardEmployeeSchema,
 } from '@/lib/schemas';
 
 describe('Zod Validation Schemas', () => {
@@ -62,5 +63,31 @@ describe('Zod Validation Schemas', () => {
     };
 
     expect(PolicySettingsSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('validates employee onboarding payload and catches short temporary passwords', () => {
+    const invalidShortPassword = {
+      fullName: 'Shankar_abbs',
+      email: 'sappisetty2@gmail.com',
+      role: 'employee',
+      branchId: '123e4567-e89b-12d3-a456-426614174000',
+      managerId: null,
+      tempPassword: 'Shankar', // only 7 chars!
+      grantQuotas: true,
+    };
+
+    const res = OnboardEmployeeSchema.safeParse(invalidShortPassword);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      const fieldErrors = res.error.flatten().fieldErrors;
+      expect(fieldErrors.tempPassword?.[0]).toBe('Temporary password must be at least 8 characters');
+    }
+
+    const validPayload = {
+      ...invalidShortPassword,
+      tempPassword: 'ShankarPassword123!',
+    };
+    const validRes = OnboardEmployeeSchema.safeParse(validPayload);
+    expect(validRes.success).toBe(true);
   });
 });

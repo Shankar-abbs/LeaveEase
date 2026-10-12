@@ -32,6 +32,7 @@ export default function ApprovalsClient({ profile, initialRequests }: ApprovalsC
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionError, setRejectionError] = useState('');
+  const [decisionError, setDecisionError] = useState<{ id: string; message: string } | null>(null);
   const supabase = getSupabaseClient();
 
   useEffect(() => {
@@ -62,9 +63,17 @@ export default function ApprovalsClient({ profile, initialRequests }: ApprovalsC
   }
 
   async function handleDecide(requestId: string, decision: 'approved' | 'rejected') {
-    if (decision === 'rejected' && rejectionReason.trim().length < 5) {
-      setRejectionError('Rejection reason must be at least 5 characters');
-      return;
+    setDecisionError(null);
+
+    if (decision === 'rejected') {
+      if (!rejectionReason.trim()) {
+        setRejectionError('Please provide a reason for rejecting this leave request.');
+        return;
+      }
+      if (rejectionReason.trim().length < 5) {
+        setRejectionError('Rejection reason must be at least 5 characters long.');
+        return;
+      }
     }
 
     setActing(requestId);
@@ -76,7 +85,13 @@ export default function ApprovalsClient({ profile, initialRequests }: ApprovalsC
       });
 
       if (error) {
-        alert(error.message.replace(/^[A-Z_]+: /, ''));
+        let msg = error.message.replace(/^[A-Z0-9_]+:\s*/, '');
+        if (error.message.includes('FORBIDDEN') || error.message.includes('permission')) {
+          msg = 'You do not have permission to decide this request.';
+        } else if (error.message.includes('ALREADY_DECIDED')) {
+          msg = 'This leave request has already been processed.';
+        }
+        setDecisionError({ id: requestId, message: msg });
         clientLogger.warn('Decision failed', { action: 'decide_leave', requestId, decision });
         return;
       }
@@ -87,8 +102,11 @@ export default function ApprovalsClient({ profile, initialRequests }: ApprovalsC
       fetch('/api/notifications/dispatch', { method: 'POST' }).catch(() => {});
 
       clientLogger.info('Leave decision made', { action: 'decide_leave', requestId, decision });
-    } catch (err) {
-      alert('Failed to process decision. Please try again.');
+    } catch (err: any) {
+      setDecisionError({
+        id: requestId,
+        message: err.message || 'Failed to process decision. Please try again.',
+      });
       clientLogger.error('Decision error', err instanceof Error ? err : undefined);
     } finally {
       setActing(null);
@@ -177,6 +195,13 @@ export default function ApprovalsClient({ profile, initialRequests }: ApprovalsC
                     {rejectionError && (
                       <p className="text-xs text-red-400 mt-1">{rejectionError}</p>
                     )}
+                  </div>
+                )}
+
+                {/* Decision Error Alert */}
+                {decisionError && decisionError.id === req.id && (
+                  <div className="mb-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300">
+                    {decisionError.message}
                   </div>
                 )}
 

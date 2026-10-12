@@ -5,6 +5,18 @@ All notable changes to the LeaveEase application will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-10-12
+
+### Fixed
+- **Form Validations & Human-Friendly Error Messages**:
+  - **Employee Onboarding (`/admin`)**: Added client-side validation and live character feedback for temporary passwords (`>= 8` chars), full name, email format, and branch selection. Replaced technical `"Error: Invalid input data"` with the exact validation reason (e.g. `"Temporary password must be at least 8 characters"`) and highlighted invalid fields with inline messages.
+  - **Shared Validation Schemas**: Centralized `OnboardEmployeeSchema` in `lib/schemas.ts` and updated `/api/admin/onboard` to return specific field error messages directly.
+  - **Account Settings (`/settings`)**: Upgraded password form validation to state exactly which requirement is missing (min length, uppercase, lowercase, numbers/symbols, matching confirmation) instead of generic warnings.
+  - **Leave Application (`/apply`)**: Added `formatLeaveSubmissionError()` to translate raw Postgres errors (`OVERLAP_ERROR`, `INSUFFICIENT_BALANCE`, zero leave days, reason length) into friendly, actionable guidance.
+  - **Manager Approvals (`/approvals`)**: Added client validation for rejection reasons (minimum 5 chars) and replaced browser `alert()` with inline contextual error banners.
+  - **Leave History (`/history`)**: Replaced browser `alert()` on cancellation failure with inline card-level error alerts.
+  - **Login (`/login`)**: Converted Supabase auth error codes into friendly user messages.
+
 ## [1.0.4] - 2026-10-12
 
 ### Fixed

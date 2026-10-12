@@ -1,19 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server';
 import { createLogger } from '@/lib/logger';
-import { z } from 'zod';
+import { OnboardEmployeeSchema } from '@/lib/schemas';
 
 const logger = createLogger({ route: '/api/admin/onboard' });
-
-const onboardSchema = z.object({
-  fullName: z.string().min(2, 'Full name must be at least 2 characters'),
-  email: z.string().email('Valid email address is required'),
-  role: z.enum(['employee', 'manager', 'hr_admin']),
-  branchId: z.string().uuid('Valid branch selection is required'),
-  managerId: z.string().uuid().nullable().optional(),
-  tempPassword: z.string().min(8, 'Temporary password must be at least 8 characters'),
-  grantQuotas: z.boolean().default(true),
-});
 
 export async function POST(request: Request) {
   const requestId = request.headers.get('x-request-id') || crypto.randomUUID();
@@ -27,7 +17,7 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
 
     if (authError || !callerUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized: Please sign in' }, { status: 401 });
     }
 
     const { data: callerProfile, error: profileCheckError } = await supabase
@@ -45,11 +35,15 @@ export async function POST(request: Request) {
 
     // 2. Parse and validate payload
     const body = await request.json();
-    const validated = onboardSchema.safeParse(body);
+    const validated = OnboardEmployeeSchema.safeParse(body);
 
     if (!validated.success) {
+      const fieldErrors = validated.error.flatten().fieldErrors;
+      const firstErrorMessage =
+        Object.values(fieldErrors).flat()[0] || 'Please provide valid input details';
+
       return NextResponse.json(
-        { error: 'Invalid input data', details: validated.error.flatten().fieldErrors },
+        { error: firstErrorMessage, details: fieldErrors },
         { status: 400 }
       );
     }

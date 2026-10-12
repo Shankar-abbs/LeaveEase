@@ -38,11 +38,24 @@ export default function SettingsClient({ profile, userEmail }: SettingsClientPro
     e.preventDefault();
     setPasswordStatus(null);
 
-    if (!isFormValid) {
-      setPasswordStatus({
-        type: 'error',
-        message: 'Please ensure all password requirements are met and passwords match.',
-      });
+    if (!hasMinLength) {
+      setPasswordStatus({ type: 'error', message: 'Your new password must be at least 8 characters long.' });
+      return;
+    }
+    if (!hasUpper) {
+      setPasswordStatus({ type: 'error', message: 'Your password must contain at least one uppercase letter (A-Z).' });
+      return;
+    }
+    if (!hasLower) {
+      setPasswordStatus({ type: 'error', message: 'Your password must contain at least one lowercase letter (a-z).' });
+      return;
+    }
+    if (!hasNumberOrSpecial) {
+      setPasswordStatus({ type: 'error', message: 'Your password must contain at least one number or symbol (!@#$%...).' });
+      return;
+    }
+    if (!passwordsMatch) {
+      setPasswordStatus({ type: 'error', message: 'Passwords do not match. Please re-enter the confirmation password.' });
       return;
     }
 
@@ -67,9 +80,13 @@ export default function SettingsClient({ profile, userEmail }: SettingsClientPro
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
+      let friendlyMsg = err.message || 'Failed to update password. Please try again.';
+      if (friendlyMsg.toLowerCase().includes('should be different')) {
+        friendlyMsg = 'Your new password must be different from your existing password.';
+      }
       setPasswordStatus({
         type: 'error',
-        message: err.message || 'Failed to update password. Please try again.',
+        message: friendlyMsg,
       });
       clientLogger.error('Failed to update password', err instanceof Error ? err : undefined);
     } finally {

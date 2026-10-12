@@ -30,11 +30,13 @@ export default function HistoryClient({ profile, initialRequests }: HistoryClien
   const [filter, setFilter] = useState<string>('all');
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<{ id: string; message: string } | null>(null);
 
   const filteredRequests = filter === 'all' ? requests : requests.filter((r) => r.status === filter);
 
   async function handleCancel(requestId: string) {
     setCancelling(requestId);
+    setCancelError(null);
     try {
       const supabase = getSupabaseClient();
       const { error } = await supabase.rpc('cancel_leave_request', {
@@ -42,8 +44,8 @@ export default function HistoryClient({ profile, initialRequests }: HistoryClien
       });
 
       if (error) {
-        const msg = error.message.replace(/^[A-Z_]+: /, '');
-        alert(msg);
+        const msg = error.message.replace(/^[A-Z0-9_]+:\s*/, '');
+        setCancelError({ id: requestId, message: msg || 'Failed to cancel request' });
         clientLogger.warn('Cancel failed', { action: 'cancel_leave', code: error.code });
         return;
       }
@@ -52,8 +54,8 @@ export default function HistoryClient({ profile, initialRequests }: HistoryClien
         prev.map((r) => r.id === requestId ? { ...r, status: 'cancelled' } : r)
       );
       clientLogger.info('Leave request cancelled', { action: 'cancel_leave', requestId });
-    } catch (err) {
-      alert('Failed to cancel. Please try again.');
+    } catch (err: any) {
+      setCancelError({ id: requestId, message: err.message || 'Failed to cancel leave request. Please try again.' });
       clientLogger.error('Cancel error', err instanceof Error ? err : undefined);
     } finally {
       setCancelling(null);
@@ -123,6 +125,12 @@ export default function HistoryClient({ profile, initialRequests }: HistoryClien
                 <div className="text-xs text-slate-500 mb-3">
                   Applied {displayDate(req.created_at.split('T')[0])}
                 </div>
+
+                {cancelError && cancelError.id === req.id && (
+                  <div className="mb-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-300">
+                    {cancelError.message}
+                  </div>
+                )}
 
                 {canCancel(req) && (
                   <>

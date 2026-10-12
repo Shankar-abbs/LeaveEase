@@ -66,6 +66,12 @@ export default function AdminClient({
   const [grantQuotas, setGrantQuotas] = useState(true);
   const [inviting, setInviting] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    fullName?: string;
+    email?: string;
+    tempPassword?: string;
+    branch?: string;
+  }>({});
   const [lastOnboarded, setLastOnboarded] = useState<{
     email: string;
     fullName: string;
@@ -79,6 +85,7 @@ export default function AdminClient({
     const rand = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
     const generated = `Temp@${rand}`;
     setInvitePassword(generated);
+    setFieldErrors((prev) => ({ ...prev, tempPassword: undefined }));
     return generated;
   }
 
@@ -99,8 +106,18 @@ export default function AdminClient({
   // Save policy settings
   async function handleSavePolicy(e: React.FormEvent) {
     e.preventDefault();
-    setSavingPolicy(true);
     setPolicyMessage(null);
+
+    if (policy.auto_approve_below_days < 0) {
+      setPolicyMessage('Error: Auto-approval threshold cannot be negative');
+      return;
+    }
+    if (!policy.weekly_off_days || policy.weekly_off_days.length === 0) {
+      setPolicyMessage('Error: At least one weekly off day must be configured');
+      return;
+    }
+
+    setSavingPolicy(true);
 
     try {
       const { error } = await supabase
@@ -115,21 +132,55 @@ export default function AdminClient({
       if (error) throw error;
       setPolicyMessage('Policies saved successfully!');
       clientLogger.info('Policy settings updated', { auto_approve: policy.auto_approve_below_days });
-    } catch (err) {
-      setPolicyMessage('Failed to save policy settings');
+    } catch (err: any) {
+      setPolicyMessage(`Error: ${err.message || 'Failed to save policy settings'}`);
       clientLogger.error('Failed to save policy settings', err instanceof Error ? err : undefined);
     } finally {
       setSavingPolicy(false);
     }
   }
 
+  // Client-side form validation before API dispatch
+  function validateOnboardForm(): boolean {
+    const errors: typeof fieldErrors = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!inviteName.trim()) {
+      errors.fullName = 'Please enter employee full name';
+    } else if (inviteName.trim().length < 2) {
+      errors.fullName = 'Full name must be at least 2 characters';
+    }
+
+    if (!inviteEmail.trim()) {
+      errors.email = 'Please enter work email address';
+    } else if (!emailRegex.test(inviteEmail.trim())) {
+      errors.email = 'Please enter a valid work email address (e.g. employee@kestrel.com)';
+    }
+
+    if (invitePassword.trim() && invitePassword.trim().length < 8) {
+      errors.tempPassword = 'Temporary password must be at least 8 characters';
+    }
+
+    if (!inviteBranch) {
+      errors.branch = 'Please select a company branch';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   // Invite & Onboard user via production API
   async function handleInviteUser(e: React.FormEvent) {
     e.preventDefault();
-    setInviting(true);
     setInviteStatus(null);
     setLastOnboarded(null);
 
+    // Validate client-side first
+    if (!validateOnboardForm()) {
+      return;
+    }
+
+    setInviting(true);
     const tempPwd = invitePassword.trim() || generateSecureTempPassword();
 
     try {
@@ -149,7 +200,23 @@ export default function AdminClient({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to onboard employee');
+        let errorMsg = data.error || 'Failed to onboard employee';
+
+        // Map server validation details directly to field errors if returned
+        if (data.details) {
+          const newErrors: typeof fieldErrors = {};
+          if (data.details.fullName?.[0]) newErrors.fullName = data.details.fullName[0];
+          if (data.details.email?.[0]) newErrors.email = data.details.email[0];
+          if (data.details.tempPassword?.[0]) newErrors.tempPassword = data.details.tempPassword[0];
+          if (data.details.branchId?.[0]) newErrors.branch = data.details.branchId[0];
+          setFieldErrors(newErrors);
+
+          const detailMessages = Object.values(data.details).flat().filter(Boolean);
+          if (detailMessages.length > 0) {
+            errorMsg = detailMessages.join('. ');
+          }
+        }
+        throw new Error(errorMsg);
       }
 
       setLastOnboarded({
@@ -163,6 +230,7 @@ export default function AdminClient({
       setInviteEmail('');
       setInviteName('');
       setInvitePassword('');
+      setFieldErrors({});
     } catch (err: any) {
       setInviteStatus(`Error: ${err.message || 'Failed to onboard user'}`);
     } finally {
@@ -172,7 +240,10 @@ export default function AdminClient({
 
   // Bulk CSV Import via production API
   async function handleCsvImport() {
-    if (!csvText.trim()) return;
+    if (!csvText.trim()) {
+      setCsvResult('Error: Please enter CSV text containing employee rows before processing.');
+      return;
+    }
     setCsvImporting(true);
     setCsvResult(null);
 
@@ -188,8 +259,22 @@ export default function AdminClient({
         throw new Error(data.error || 'Failed to process bulk import');
       }
 
-      setCsvResult(`Bulk import complete: ${data.succeeded} onboarded successfully, ${data.failed} failed/skipped out of ${data.total} rows.`);
-      setCsvText('');
+      const failedDetails = Array.isArray(data.results)
+        ? data.results
+            .filter((r: any) => r.status === 'error')
+            .map((r: any) => `${r.email || r.name}: ${r.message || 'Failed'}`)
+            .slice(0, 5)
+        : [];
+
+      let summary = `Bulk import complete: ${data.succeeded} onboarded successfully, ${data.failed} failed/skipped out of ${data.total} rows.`;
+      if (failedDetails.length > 0) {
+        summary += `\nIssues:\n• ${failedDetails.join('\n• ')}`;
+      }
+
+      setCsvResult(summary);
+      if (data.failed === 0) {
+        setCsvText('');
+      }
     } catch (err: any) {
       setCsvResult(`Error: ${err.message || 'Error processing CSV'}`);
     } finally {
@@ -484,34 +569,58 @@ export default function AdminClient({
                 </div>
               )}
 
-              <form onSubmit={handleInviteUser} className="space-y-3">
+              <form onSubmit={handleInviteUser} className="space-y-3.5" noValidate>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Full Name</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1" htmlFor="invite-name">
+                    Full Name <span className="text-red-400">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={inviteName}
-                    onChange={(e) => setInviteName(e.target.value)}
+                    onChange={(e) => {
+                      setInviteName(e.target.value);
+                      if (fieldErrors.fullName) setFieldErrors((prev) => ({ ...prev, fullName: undefined }));
+                    }}
                     placeholder="e.g. Anand Kumar"
-                    className="input w-full"
+                    className={`input w-full ${fieldErrors.fullName ? 'border-red-500/60 focus:border-red-500 bg-red-500/5' : ''}`}
                     id="invite-name"
                   />
+                  {fieldErrors.fullName && (
+                    <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                      <span>•</span> {fieldErrors.fullName}
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1" htmlFor="invite-email">
+                    Email Address <span className="text-red-400">*</span>
+                  </label>
                   <input
                     type="email"
                     required
                     value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onChange={(e) => {
+                      setInviteEmail(e.target.value);
+                      if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                    }}
                     placeholder="e.g. anand@kestrel.com"
-                    className="input w-full"
+                    className={`input w-full ${fieldErrors.email ? 'border-red-500/60 focus:border-red-500 bg-red-500/5' : ''}`}
                     id="invite-email"
                   />
+                  {fieldErrors.email && (
+                    <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                      <span>•</span> {fieldErrors.email}
+                    </p>
+                  )}
                 </div>
+
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-medium text-slate-300">Temporary Password</label>
+                    <label className="block text-xs font-medium text-slate-300" htmlFor="invite-temp-password">
+                      Temporary Password
+                    </label>
                     <button
                       type="button"
                       onClick={generateSecureTempPassword}
@@ -524,27 +633,68 @@ export default function AdminClient({
                   <input
                     type="text"
                     value={invitePassword}
-                    onChange={(e) => setInvitePassword(e.target.value)}
+                    onChange={(e) => {
+                      setInvitePassword(e.target.value);
+                      if (fieldErrors.tempPassword) setFieldErrors((prev) => ({ ...prev, tempPassword: undefined }));
+                    }}
                     placeholder="Auto-generated if left blank (min 8 chars)"
-                    className="input w-full font-mono text-xs"
+                    className={`input w-full font-mono text-xs ${
+                      fieldErrors.tempPassword || (invitePassword.length > 0 && invitePassword.length < 8)
+                        ? 'border-red-500/60 focus:border-red-500 bg-red-500/5'
+                        : ''
+                    }`}
                     id="invite-temp-password"
                   />
+                  {/* Dynamic password helper & validation state */}
+                  {fieldErrors.tempPassword ? (
+                    <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                      <span>•</span> {fieldErrors.tempPassword}
+                    </p>
+                  ) : invitePassword.length > 0 ? (
+                    <div className="mt-1 flex items-center justify-between text-[11px]">
+                      {invitePassword.length < 8 ? (
+                        <span className="text-red-400 font-medium">
+                          Must be at least 8 characters ({invitePassword.length}/8 chars)
+                        </span>
+                      ) : (
+                        <span className="text-emerald-400 font-medium">
+                          ✓ Valid password length ({invitePassword.length} characters)
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Leave blank to automatically generate a secure 11-character password.
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Branch</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1" htmlFor="invite-branch">
+                    Branch <span className="text-red-400">*</span>
+                  </label>
                   <select
                     value={inviteBranch}
-                    onChange={(e) => setInviteBranch(e.target.value)}
-                    className="input w-full"
+                    onChange={(e) => {
+                      setInviteBranch(e.target.value);
+                      if (fieldErrors.branch) setFieldErrors((prev) => ({ ...prev, branch: undefined }));
+                    }}
+                    className={`input w-full ${fieldErrors.branch ? 'border-red-500/60 focus:border-red-500 bg-red-500/5' : ''}`}
                     id="invite-branch"
                   >
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
                     ))}
                   </select>
+                  {fieldErrors.branch && (
+                    <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                      <span>•</span> {fieldErrors.branch}
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Manager</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1" htmlFor="invite-manager">Manager</label>
                   <select
                     value={inviteManager}
                     onChange={(e) => setInviteManager(e.target.value)}
@@ -557,8 +707,9 @@ export default function AdminClient({
                     ))}
                   </select>
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Role</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1" htmlFor="invite-role">Role</label>
                   <select
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value as any)}
@@ -570,6 +721,7 @@ export default function AdminClient({
                     <option value="hr_admin">HR Admin</option>
                   </select>
                 </div>
+
                 <div className="flex items-center gap-2 pt-1">
                   <input
                     type="checkbox"
@@ -582,6 +734,7 @@ export default function AdminClient({
                     Grant initial leave quotas (12 CL, 10 SL, 15 EL)
                   </label>
                 </div>
+
                 <button
                   type="submit"
                   disabled={inviting}
@@ -600,7 +753,13 @@ export default function AdminClient({
                 Format: <code className="text-brand-300">email, full_name, branch_code, manager_email, role</code>
               </p>
               {csvResult && (
-                <div className="p-3 rounded-xl bg-slate-800 text-xs text-slate-200">
+                <div
+                  className={`p-3 rounded-xl text-xs whitespace-pre-line ${
+                    csvResult.startsWith('Error')
+                      ? 'bg-red-500/10 border border-red-500/20 text-red-300'
+                      : 'bg-slate-800 border border-slate-700 text-slate-200'
+                  }`}
+                >
                   {csvResult}
                 </div>
               )}

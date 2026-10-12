@@ -73,6 +73,21 @@ export const InviteUserSchema = z.object({
 
 export type InviteUserInput = z.infer<typeof InviteUserSchema>;
 
+// ─── Onboard Employee ─────────────────────────────────────────────────────────
+export const OnboardEmployeeSchema = z.object({
+  fullName: z.string().trim().min(2, 'Full name must be at least 2 characters'),
+  email: z.string().trim().email('Valid work email address is required (e.g. employee@kestrel.com)'),
+  role: z.enum(['employee', 'manager', 'hr_admin'], {
+    errorMap: () => ({ message: 'Please select a valid role (Employee, Manager, or HR Admin)' }),
+  }),
+  branchId: z.string().uuid('Please select a valid company branch'),
+  managerId: z.string().uuid('Please select a valid manager').nullable().optional(),
+  tempPassword: z.string().min(8, 'Temporary password must be at least 8 characters'),
+  grantQuotas: z.boolean().default(true),
+});
+
+export type OnboardEmployeeInput = z.infer<typeof OnboardEmployeeSchema>;
+
 // ─── HR Monthly Report ────────────────────────────────────────────────────────
 export const MonthlyReportSchema = z.object({
   year: z.number().int().min(2020).max(2099),

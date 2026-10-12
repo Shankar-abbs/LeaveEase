@@ -18,19 +18,40 @@ function LoginForm() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError('');
 
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('Please enter your work email address.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
+    setLoading(true);
     const supabase = getSupabaseClient();
 
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+        email: trimmedEmail,
         password,
       });
 
       if (signInError) {
-        setError(signInError.message);
+        const rawMsg = signInError.message.toLowerCase();
+        let friendlyMsg = signInError.message;
+
+        if (rawMsg.includes('invalid login credentials')) {
+          friendlyMsg = 'Incorrect email or password. Please check your credentials or contact HR.';
+        } else if (rawMsg.includes('email not confirmed')) {
+          friendlyMsg = 'Your account email has not been confirmed yet. Please contact HR.';
+        } else if (rawMsg.includes('too many') || rawMsg.includes('rate limit')) {
+          friendlyMsg = 'Too many login attempts. Please wait a few minutes before trying again.';
+        }
+
+        setError(friendlyMsg);
         clientLogger.warn('Login failed', { action: 'login', code: signInError.status });
         setLoading(false);
         return;
