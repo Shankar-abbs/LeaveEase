@@ -6,11 +6,11 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL_STAGING!;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY_STAGING!;
+const SUPABASE_URL = process.env.SUPABASE_URL_STAGING || process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY_STAGING || process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const DEMO_PASSWORD = process.env.DEMO_USER_PASSWORD || 'Demo@12345';
 const HR_ADMIN_EMAIL = process.env.HR_ADMIN_EMAIL || 'hr.admin@leaveease.test';
-const HR_ADMIN_PASSWORD = process.env.HR_ADMIN_PASSWORD!;
+const HR_ADMIN_PASSWORD = process.env.HR_ADMIN_PASSWORD || process.env.DEMO_USER_PASSWORD || 'Demo@12345';
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 

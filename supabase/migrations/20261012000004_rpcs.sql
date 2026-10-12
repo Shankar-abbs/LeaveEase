@@ -650,11 +650,11 @@ END;
 $$;
 
 -- ─── pg_cron schedules ───────────────────────────────────────────────────────
--- Monthly EL accrual: 1st of each month at 00:01 IST (= 18:31 UTC prev day)
-SELECT cron.schedule('el-monthly-accrual', '31 18 L * *', 'SELECT public.run_monthly_accrual()');
+-- Monthly EL accrual: 1st of each month at 00:00
+SELECT cron.schedule('el-monthly-accrual', '0 0 1 * *', 'SELECT public.run_monthly_accrual()');
 
--- Annual reset: 1 January at 00:01 IST (= 18:31 UTC Dec 31)
-SELECT cron.schedule('annual-reset', '31 18 31 12 *', 'SELECT public.run_annual_reset()');
+-- Annual reset: 1 January at 00:00
+SELECT cron.schedule('annual-reset', '0 0 1 1 *', 'SELECT public.run_annual_reset()');
 
 -- Notification retry sweep: every 5 minutes
 SELECT cron.schedule('notification-sweep', '*/5 * * * *',
