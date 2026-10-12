@@ -1,0 +1,187 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Design Tokens ─────────────────────────────────────────────────────────── */
+:root {
+  /* Brand Colors */
+  --color-brand-50: #f0fdfa;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-900: #134e4a;
+
+  /* Surface Colors */
+  --color-surface-1: #0f172a;   /* slate-900 */
+  --color-surface-2: #1e293b;   /* slate-800 */
+  --color-surface-3: #334155;   /* slate-700 */
+  --color-surface-card: #1e293b;
+
+  /* Text */
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+
+  /* Status */
+  --color-pending: #f59e0b;
+  --color-approved: #10b981;
+  --color-rejected: #ef4444;
+  --color-cancelled: #6b7280;
+
+  /* Touch targets */
+  --min-touch-target: 44px;
+}
+
+/* ─── Base Styles ───────────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Ensure all interactive elements meet 44px touch target */
+  button, a, [role="button"], input, select, textarea {
+    min-height: var(--min-touch-target);
+  }
+
+  /* Better scrolling on mobile */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ─── Component Utilities ────────────────────────────────────────────────────── */
+@layer components {
+  /* Cards */
+  .card {
+    @apply bg-slate-800 rounded-2xl border border-slate-700/50 shadow-xl;
+  }
+
+  .card-glass {
+    @apply bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl shadow-xl;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 font-semibold text-white
+           transition-all hover:bg-brand-500 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+           min-h-[44px] text-sm;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-6 py-3 font-semibold text-slate-200
+           transition-all hover:bg-slate-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+           min-h-[44px] text-sm;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3 font-semibold text-white
+           transition-all hover:bg-red-500 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+           min-h-[44px] text-sm;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-slate-300
+           transition-all hover:bg-slate-800 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+           min-h-[44px] text-sm;
+  }
+
+  /* Form inputs */
+  .input {
+    @apply w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-slate-100 text-sm
+           placeholder:text-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20
+           min-h-[44px] transition-all;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-slate-300 mb-1.5;
+  }
+
+  /* Status badges */
+  .badge-pending  { @apply inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-medium text-amber-400; }
+  .badge-approved { @apply inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-400; }
+  .badge-rejected { @apply inline-flex items-center gap-1 rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400; }
+  .badge-cancelled { @apply inline-flex items-center gap-1 rounded-full bg-slate-500/20 px-2.5 py-0.5 text-xs font-medium text-slate-400; }
+
+  /* Navigation */
+  .nav-item {
+    @apply flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-slate-400
+           transition-all hover:text-brand-400 hover:bg-brand-500/10
+           min-h-[44px] min-w-[44px] justify-center;
+  }
+  .nav-item-active {
+    @apply text-brand-400 bg-brand-500/10;
+  }
+
+  /* Page container */
+  .page-container {
+    @apply mx-auto max-w-2xl px-4 pb-24 pt-4 min-h-screen;
+  }
+
+  /* Section header */
+  .section-title {
+    @apply text-lg font-semibold text-slate-100;
+  }
+
+  /* Offline banner */
+  .offline-banner {
+    @apply fixed top-0 left-0 right-0 z-50 bg-amber-500 px-4 py-2 text-center text-sm font-medium text-amber-950;
+  }
+}
+
+/* ─── Animations ────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* Shimmer loading effect */
+  .shimmer {
+    background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Focus visible ring */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950;
+  }
+}
+
+/* ─── Scrollbar Styling ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0f172a; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* ─── Print ─────────────────────────────────────────────────────────────────── */
+@media print {
+  body { background: white; color: black; }
+  .no-print { display: none; }
+}

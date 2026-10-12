@@ -1,0 +1,45 @@
+name: requirement
+description: File a plain-English requirement for analysis and implementation
+title: "[REQ] "
+labels:
+  - requirement
+assignees: []
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe what you want in plain English
+      description: "No technical jargon needed. Just describe the feature or change from a user's perspective."
+      placeholder: "e.g. Managers should be able to delegate approvals to a colleague while on leave"
+    validations:
+      required: true
+
+  - type: textarea
+    id: business-context
+    attributes:
+      label: Business context (optional)
+      description: "Why is this needed? What problem does it solve?"
+      placeholder: "e.g. During peak holiday season, managers are unavailable and requests pile up"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: auto-proceed
+    attributes:
+      label: Auto-proceed without approval gate
+      description: "CAUTION: Only check if you are confident there are no conflicts with existing requirements or privacy rules."
+      options:
+        - label: "Yes, analyse and implement automatically without pausing for approval (only if no conflicts)"

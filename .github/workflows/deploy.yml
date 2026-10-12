@@ -1,0 +1,110 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # ─── Push migrations to PROD ─────────────────────────────────────────────
+      - name: Push DB migrations to PROD
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF_PROD }} \
+            -p '${{ secrets.SUPABASE_DB_PASSWORD_PROD }}'
+          supabase db push
+
+      # ─── Deploy Edge Functions ────────────────────────────────────────────────
+      - name: Deploy Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy send-notification \
+            --project-ref ${{ secrets.SUPABASE_PROJECT_REF_PROD }}
+
+      - name: Set Edge Function secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase secrets set \
+            RESEND_API_KEY='${{ secrets.RESEND_API_KEY }}' \
+            EMAIL_FROM='${{ secrets.EMAIL_FROM }}' \
+            EMAIL_OVERRIDE_TO='${{ secrets.EMAIL_OVERRIDE_TO }}' \
+            APP_URL='https://leaveease.vercel.app' \
+            --project-ref ${{ secrets.SUPABASE_PROJECT_REF_PROD }}
+
+      # ─── Deploy to Vercel Production ─────────────────────────────────────────
+      - name: Deploy to Vercel Production
+        id: vercel-deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_PROD }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_PROD }}
+          NEXT_PUBLIC_APP_VERSION: ${{ github.sha }}
+        run: |
+          PROD_URL=$(npx vercel --token $VERCEL_TOKEN --prod --yes 2>&1 | tail -1)
+          echo "prod_url=$PROD_URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: $PROD_URL"
+
+      # ─── Smoke Tests ──────────────────────────────────────────────────────────
+      - name: Smoke Tests
+        env:
+          PROD_URL: ${{ steps.vercel-deploy.outputs.prod_url }}
+        run: |
+          # Test 1: Login page loads
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL/login")
+          if [ "$STATUS" != "200" ]; then echo "Login page failed: $STATUS" && exit 1; fi
+          echo "✓ Login page: $STATUS"
+
+          # Test 2: Health endpoint
+          HEALTH=$(curl -s "$PROD_URL/api/health")
+          echo "Health response: $HEALTH"
+          STATUS_FIELD=$(echo $HEALTH | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','error'))")
+          if [ "$STATUS_FIELD" = "error" ]; then echo "Health check failed" && exit 1; fi
+          echo "✓ Health check: $STATUS_FIELD"
+
+          echo "✅ All smoke tests passed"
+
+      # ─── On failure: open incident issue ─────────────────────────────────────
+      - name: Open Incident Issue on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Production Deploy Failed: ${context.sha.slice(0, 8)}`,
+              body: `## Deploy Failure\n\n**Commit:** ${context.sha}\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n### Rollback Instructions\n1. Find the last successful deploy SHA\n2. Run: \`git revert <SHA> && git push\`\n3. Or revert via Vercel dashboard\n4. Check Supabase migration history and roll back if needed\n\n**Labels:** incident, production`,
+              labels: ['incident', 'production'],
+            });

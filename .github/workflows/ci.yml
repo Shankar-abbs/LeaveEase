@@ -1,0 +1,249 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9'
+
+jobs:
+  # ─── Lint & Typecheck ───────────────────────────────────────────────────────
+  lint:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+  # ─── Secret Scanning ─────────────────────────────────────────────────────────
+  gitleaks:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ─── Unit Tests ──────────────────────────────────────────────────────────────
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test --reporter=junit --outputFile=test-results/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: test-results/
+
+  # ─── Database Tests (pgTAP) ──────────────────────────────────────────────────
+  db-tests:
+    name: DB Tests (pgTAP)
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_STAGING }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Link to staging
+        run: |
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF_STAGING }} \
+            -p '${{ secrets.SUPABASE_DB_PASSWORD_STAGING }}'
+      - name: Run pgTAP tests
+        run: supabase test db
+
+  # ─── Build ───────────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, unit]
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_STAGING }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_STAGING }}
+      NEXT_PUBLIC_APP_VERSION: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-build
+          path: .next/
+          retention-days: 7
+
+  # ─── Vercel Preview Deploy ───────────────────────────────────────────────────
+  preview:
+    name: Vercel Preview
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'pull_request'
+    outputs:
+      preview_url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Deploy to Vercel Preview
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          URL=$(npx vercel --token $VERCEL_TOKEN --yes 2>&1 | tail -1)
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Preview URL: $URL"
+      - name: Comment preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🚀 Preview Deployed\n\n**URL:** ${{ steps.deploy.outputs.preview_url }}\n\n*Against STAGING Supabase*`
+            });
+
+  # ─── E2E Tests ────────────────────────────────────────────────────────────────
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [preview]
+    if: github.event_name == 'pull_request'
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.preview_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run Playwright E2E
+        run: pnpm e2e
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_STAGING }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_STAGING }}
+          DEMO_USER_PASSWORD: ${{ secrets.DEMO_USER_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ─── Privacy Guard ────────────────────────────────────────────────────────────
+  privacy-guard:
+    name: Privacy Guard
+    runs-on: ubuntu-latest
+    needs: [preview]
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright test tests/e2e/privacy-guard.spec.ts
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.preview_url }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_STAGING }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_STAGING }}
+          DEMO_USER_PASSWORD: ${{ secrets.DEMO_USER_PASSWORD }}
+
+  # ─── Migration Lint ───────────────────────────────────────────────────────────
+  migration-lint:
+    name: Migration Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for destructive migrations without label
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const hasAllowDestructive = labels.some(l => l.name === 'allow-destructive');
+
+            const { execSync } = require('child_process');
+            const changedFiles = execSync('git diff --name-only origin/main HEAD -- supabase/migrations/').toString();
+
+            const destructivePatterns = ['DROP TABLE', 'DROP COLUMN', 'ALTER TABLE.*DROP', 'TRUNCATE'];
+            let hasDestructive = false;
+
+            for (const file of changedFiles.trim().split('\n').filter(Boolean)) {
+              const content = require('fs').readFileSync(file, 'utf8');
+              if (destructivePatterns.some(p => new RegExp(p, 'i').test(content))) {
+                hasDestructive = true;
+                core.warning(`Destructive operation in ${file}`);
+              }
+            }
+
+            if (hasDestructive && !hasAllowDestructive) {
+              core.setFailed('Destructive migration found. Add "allow-destructive" label to proceed.');
+            }

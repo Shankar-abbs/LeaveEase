@@ -1,0 +1,60 @@
+name: PR-Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    name: AI Architectural & Privacy Review
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for AI runner
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "runner=gemini" >> $GITHUB_OUTPUT
+          elif [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "runner=anthropic" >> $GITHUB_OUTPUT
+          else
+            echo "runner=none" >> $GITHUB_OUTPUT
+          fi
+
+      - name: No AI runner configured
+        if: steps.check-key.outputs.runner == 'none'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `> **AI PR Review runner not configured.**\n>\n> Add \`GEMINI_API_KEY\` or \`ANTHROPIC_API_KEY\` as a repo secret to enable automated AI code reviews against REQUIREMENTS.md and Privacy Rules.\n>\n> *Automated CI checks (lint, typecheck, tests, privacy guard, gitleaks) continue to run via ci.yml.*`
+            });
+
+      - name: Review with Gemini
+        if: steps.check-key.outputs.runner == 'gemini'
+        uses: google-github-actions/run-gemini-cli@v1
+        with:
+          api_key: ${{ secrets.GEMINI_API_KEY }}
+          prompt_file: .agent/prompts/review.md
+          variables: |
+            PR_NUMBER=${{ github.event.pull_request.number }}
+            PR_TITLE=${{ github.event.pull_request.title }}
+
+      - name: Review with Claude
+        if: steps.check-key.outputs.runner == 'anthropic'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: .agent/prompts/review.md

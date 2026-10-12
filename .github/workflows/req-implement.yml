@@ -1,0 +1,62 @@
+name: Req-Implement
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  implement:
+    name: Implement Requirement
+    runs-on: ubuntu-latest
+    if: github.event.label.name == 'approved'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Check for AI runner
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "runner=gemini" >> $GITHUB_OUTPUT
+          elif [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "runner=anthropic" >> $GITHUB_OUTPUT
+          else
+            echo "runner=none" >> $GITHUB_OUTPUT
+          fi
+
+      - name: No AI runner configured
+        if: steps.check-key.outputs.runner == 'none'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `> **AI implementation runner not configured.**\n>\n> Add \`GEMINI_API_KEY\` or \`ANTHROPIC_API_KEY\` as a repo secret to enable automated implementation.\n>\n> **To implement locally:** Run \`/requirement <text>\` in Antigravity.`
+            });
+
+      - name: Implement with Gemini
+        if: steps.check-key.outputs.runner == 'gemini'
+        uses: google-github-actions/run-gemini-cli@v1
+        with:
+          api_key: ${{ secrets.GEMINI_API_KEY }}
+          prompt_file: .agent/prompts/implement.md
+          variables: |
+            ISSUE_NUMBER=${{ github.event.issue.number }}
+            ISSUE_TITLE=${{ github.event.issue.title }}
+
+      - name: Implement with Claude
+        if: steps.check-key.outputs.runner == 'anthropic'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: .agent/prompts/implement.md
