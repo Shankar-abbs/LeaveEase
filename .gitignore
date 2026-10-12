@@ -52,3 +52,6 @@ lhci_results/
 # supabase local dev
 /supabase/.branches
 /supabase/.temp
+
+.vercel
+.env*

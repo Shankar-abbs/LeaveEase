@@ -5,6 +5,13 @@ All notable changes to the LeaveEase application will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-12
+
+### Changed
+- Upgraded Next.js to 15.5.27 for production security and Vercel compatibility.
+- Excluded Playwright E2E suites from Vitest unit runner in `vitest.config.ts`.
+- Configured Vercel production environment variables and deployment scripts.
+
 ## [1.0.0] - 2026-10-12
 
 ### Added
