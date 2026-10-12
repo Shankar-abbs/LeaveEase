@@ -124,6 +124,9 @@ export default function ApplyPageClient({ profile, leaveTypes, balances, weeklyO
         status: result?.status,
       });
 
+      // Trigger background email dispatch via Resend
+      fetch('/api/notifications/dispatch', { method: 'POST' }).catch(() => {});
+
       setSuccess(true);
       setTimeout(() => router.push('/history'), 1500);
     } catch (err) {

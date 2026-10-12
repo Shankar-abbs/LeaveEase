@@ -5,6 +5,16 @@ All notable changes to the LeaveEase application will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-10-12
+
+### Fixed
+- **Settings Page**: Fixed missing `branches.city` query error in `app/settings/page.tsx` that caused users to be redirected to login when clicking Settings.
+- **Resend Email Integration**: Configured `EMAIL_OVERRIDE_TO` sandbox delivery to `sankar.abbs@gmail.com` and `EMAIL_FROM=onboarding@resend.dev` across Vercel and Supabase Edge Functions. Added `/api/notifications/dispatch` to deliver outbox notifications reliably.
+
+### Added
+- **Global & Route Loading Animations**: Added rich glowing PageLoading states across all App Router routes (`/`, `/dashboard`, `/settings`, `/admin`, `/apply`, `/approvals`, `/history`, `/team-calendar`).
+- **Interactive Action Feedback**: Added persistent redirecting and signing-in spinners, progress bars, and route navigation indicators in `app/login/page.tsx` and `components/AppShell.tsx`.
+
 ## [1.0.2] - 2026-10-12
 
 ### Added

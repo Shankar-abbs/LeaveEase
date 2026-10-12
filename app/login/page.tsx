@@ -10,6 +10,7 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -31,21 +32,24 @@ function LoginForm() {
       if (signInError) {
         setError(signInError.message);
         clientLogger.warn('Login failed', { action: 'login', code: signInError.status });
+        setLoading(false);
         return;
       }
 
       if (data.user) {
+        setRedirecting(true);
         clientLogger.info('Login successful', { action: 'login' });
         router.push(redirectTo);
-        router.refresh();
+        // Keep loading animation alive during route push
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       clientLogger.error('Login error', err instanceof Error ? err : new Error(String(err)));
-    } finally {
       setLoading(false);
     }
   }
+
+  const isProcessing = loading || redirecting;
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-brand-950/30 to-slate-950">
@@ -62,7 +66,14 @@ function LoginForm() {
         </div>
 
         {/* Form Card */}
-        <div className="card p-6 shadow-2xl">
+        <div className="card p-6 shadow-2xl relative overflow-hidden">
+          {/* Top animated progress bar when processing */}
+          {isProcessing && (
+            <div className="absolute top-0 left-0 right-0 h-1 bg-slate-800 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-brand-500 via-indigo-400 to-brand-500 w-full animate-pulse" />
+            </div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-5" id="login-form">
             <div>
               <label htmlFor="email" className="label">
@@ -77,7 +88,7 @@ function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="input"
                 placeholder="you@kestrellogistics.com"
-                disabled={loading}
+                disabled={isProcessing}
               />
             </div>
 
@@ -94,7 +105,7 @@ function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="input"
                 placeholder="••••••••••"
-                disabled={loading}
+                disabled={isProcessing}
               />
             </div>
 
@@ -110,17 +121,25 @@ function LoginForm() {
             <button
               type="submit"
               id="login-submit"
-              className="btn-primary w-full mt-2"
-              disabled={loading}
+              className="btn-primary w-full mt-2 relative"
+              disabled={isProcessing}
             >
-              {loading ? (
-                <>
+              {redirecting ? (
+                <span className="flex items-center justify-center gap-2">
                   <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Signing in…
-                </>
+                  <span>Loading Workspace…</span>
+                </span>
+              ) : loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span>Signing in…</span>
+                </span>
               ) : (
                 'Sign In'
               )}

@@ -66,6 +66,12 @@ export default function AppShell({ profile, activeRoute, children }: AppShellPro
   const pathname = usePathname();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+
+  // Clear navigation loading indicator once page updates
+  useState(() => {
+    setNavigatingTo(null);
+  });
 
   const role = profile?.role ?? 'employee';
   const navItems = role === 'hr_admin' ? NAV_ITEMS_HR :
@@ -95,7 +101,14 @@ export default function AppShell({ profile, activeRoute, children }: AppShellPro
   return (
     <div className="min-h-screen bg-slate-950">
       {/* Top bar — desktop */}
-      <header className="hidden md:flex items-center justify-between h-16 px-6 border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-40">
+      <header className="hidden md:flex items-center justify-between h-16 px-6 border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-40 relative">
+        {/* Animated navigation progress bar */}
+        {navigatingTo && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-slate-800 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-brand-500 via-indigo-400 to-emerald-400 w-full animate-pulse" />
+          </div>
+        )}
+
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-brand-600/20 border border-brand-500/30 p-2">
             <svg className="w-5 h-5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -110,6 +123,9 @@ export default function AppShell({ profile, activeRoute, children }: AppShellPro
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => {
+                if (pathname !== item.href) setNavigatingTo(item.href);
+              }}
               className={`nav-item flex-row gap-2 px-4 ${pathname === item.href || pathname.startsWith(item.href + '/') ? 'nav-item-active' : ''}`}
             >
               <NavIcon icon={item.icon} />
@@ -199,6 +215,9 @@ export default function AppShell({ profile, activeRoute, children }: AppShellPro
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => {
+                  if (pathname !== item.href) setNavigatingTo(item.href);
+                }}
                 id={`nav-${item.label.toLowerCase()}`}
                 className={`nav-item flex-col flex-1 ${isActive ? 'nav-item-active' : ''}`}
                 aria-label={item.label}

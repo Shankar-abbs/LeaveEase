@@ -83,7 +83,9 @@ export default function ApprovalsClient({ profile, initialRequests }: ApprovalsC
 
       setRequests((prev) => prev.filter((r) => r.id !== requestId));
       setRejectingId(null);
-      setRejectionReason('');
+      // Trigger background email dispatch via Resend
+      fetch('/api/notifications/dispatch', { method: 'POST' }).catch(() => {});
+
       clientLogger.info('Leave decision made', { action: 'decide_leave', requestId, decision });
     } catch (err) {
       alert('Failed to process decision. Please try again.');
