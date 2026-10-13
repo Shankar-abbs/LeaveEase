@@ -10,7 +10,7 @@ This document records the resolved ambiguities and operational decisions codifie
 - **Scope:** Applies strictly to Casual Leave (CL). Sick Leave (SL) and Earned Leave (EL) always require manager action. Auto-approvals mark `decided_by = 'system'` and send an informational email to the manager.
 
 ### D2: Team Calendar vs Leave Privacy
-- **Resolution:** The team calendar displays only `approved` leave for peers sharing the same direct manager.
+- **Resolution:** The team calendar displays `approved` colleague absences across the organization for planning and capacity scheduling, excluding self (caller manages own leave on dashboard/history).
 - **Privacy Enforcement:** Rendered strictly as `"<Name> is away"` with `start_date` and `end_date`. Leave type, leave reason, and pending/rejected status are never returned by the `team_calendar()` SECURITY DEFINER function.
 
 ### D3: Realtime vs Offline Priority

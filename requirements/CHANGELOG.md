@@ -5,6 +5,13 @@ All notable changes to the LeaveEase application will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-10-13
+
+### Fixed
+- **Team Calendar Colleague Absence Visibility (REQ-006)**:
+  - **Migration 008 (`20261012000008_fix_team_calendar_visibility.sql`)**: Updated `team_calendar()` SECURITY DEFINER function to display approved colleague absences across the organization to all authenticated users. Previously, the RPC strictly filtered by `p.manager_id = v_caller_manager`, causing employees with different managers (or reporting to HR Admin / no manager) to see 0 colleague absences scheduled even when peers like Anjali were away.
+  - Strictly preserves Privacy Invariants: returns strictly `user_id`, `display_name`, `start_date`, and `end_date`, completely excluding leave reason, leave type, and pending/rejected requests.
+
 ## [1.0.5] - 2026-10-12
 
 ### Fixed

@@ -9,7 +9,7 @@ This document maps requirements to database migrations, application code, securi
 | **REQ-003** (Manager Approvals) | `20261012000004_rpcs.sql` (`decide_leave_request`) | `app/approvals/`, `components/AppShell.tsx` | `tests/e2e/workflow.spec.ts`, `tests/privacy/privacy-guard.test.ts` | Complete |
 | **REQ-004** (Auto Approval) | `20261012000001_core_tables.sql` (`policy_settings`), `20261012000004_rpcs.sql` | `app/admin/`, `app/apply/` | `tests/e2e/workflow.spec.ts` | Complete |
 | **REQ-005** (Privacy Invariants) | RLS policies on `leave_requests`, `leave_ledger` | `lib/redact.ts`, `lib/logger.ts` | `tests/privacy/privacy-guard.test.ts`, `tests/unit/redact.test.ts` | Complete |
-| **REQ-006** (Team Calendar) | `20261012000004_rpcs.sql` (`team_calendar`) | `app/team-calendar/` | `tests/privacy/privacy-guard.test.ts` | Complete |
+| **REQ-006** (Team Calendar) | `20261012000004_rpcs.sql`, `20261012000008_fix_team_calendar_visibility.sql` (`team_calendar`) | `app/team-calendar/` | `tests/privacy/privacy-guard.test.ts` | Complete |
 | **REQ-007** (Balance Ledger & Cancel) | `20261012000002_leave_requests.sql` (`leave_ledger`), `20261012000004_rpcs.sql` | `app/history/`, `app/dashboard/` | `tests/privacy/privacy-guard.test.ts`, `tests/e2e/workflow.spec.ts` | Complete |
 | **REQ-008** (EL Accrual & Reset) | `20261012000004_rpcs.sql` (`run_monthly_accrual`, `run_annual_reset`) | `lib/dates.ts` | `tests/unit/dates.test.ts` | Complete |
 | **REQ-009** (Offline & Sync) | `lib/offline/outbox.ts`, `lib/offline/useSync.ts` | `components/AppShell.tsx`, `public/sw.js` | `tests/e2e/workflow.spec.ts` | Complete |
